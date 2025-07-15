@@ -1,0 +1,38 @@
+{
+  "name": "clipfakebook",
+  "version": "1.0.0",
+  "description": "A simple clipboard manager for macOS",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "webpack",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^24.0.13",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "buffer-crc32": "^1.0.0",
+    "canvas": "^3.1.2",
+    "css-loader": "^7.1.2",
+    "electron": "^37.2.1",
+    "electron-builder": "^26.0.12",
+    "html-webpack-plugin": "^5.6.3",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.8.3",
+    "webpack": "^5.100.1",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "electron-store": "^10.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  }
+}
