@@ -19,5 +19,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   setDockSetting: (show: boolean): Promise<void> => {
     return ipcRenderer.invoke('set-dock-setting', show);
+  },
+  getImageData: (imagePath: string): Promise<string | null> => {
+    return ipcRenderer.invoke('get-image-data', imagePath);
   }
 });

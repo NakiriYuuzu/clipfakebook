@@ -1,19 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { ClipboardItem } from '../shared/types';
+import { formatTime, formatFileSize, truncateText } from '../shared/utils';
+import { SafeImage } from '../shared/components/SafeImage';
+import '../shared/electronAPI';
 import './App.css';
 
-declare global {
-  interface Window {
-    electronAPI: {
-      getClipboardHistory: () => Promise<ClipboardItem[]>;
-      copyToClipboard: (content: string) => Promise<void>;
-      togglePinItem: (id: string) => Promise<void>;
-      deleteItem: (id: string) => Promise<boolean>;
-      getDockSetting: () => Promise<boolean>;
-      setDockSetting: (show: boolean) => Promise<void>;
-    };
-  }
-}
 
 const App: React.FC = () => {
   const [history, setHistory] = useState<ClipboardItem[]>([]);
@@ -29,9 +20,14 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const filteredHistory = history.filter(item =>
-    item.content.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredHistory = history.filter(item => {
+    if (item.type === 'image') {
+      // For images, search in the display text and format
+      return 'image'.includes(searchTerm.toLowerCase()) || 
+             (item.imageFormat?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
+    }
+    return item.content.toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   // 處理鍵盤快捷鍵
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
@@ -39,7 +35,7 @@ const App: React.FC = () => {
     if (event.key >= '1' && event.key <= '9') {
       const index = parseInt(event.key) - 1;
       if (index < filteredHistory.length) {
-        handleItemClick(filteredHistory[index].content);
+        handleItemClick(filteredHistory[index]);
       }
     }
   }, [filteredHistory]);
@@ -59,8 +55,8 @@ const App: React.FC = () => {
     setShowInDock(setting);
   };
 
-  const handleItemClick = async (content: string) => {
-    await window.electronAPI.copyToClipboard(content);
+  const handleItemClick = async (item: ClipboardItem) => {
+    await window.electronAPI.copyToClipboard(item);
   };
 
   const handleTogglePin = async (id: string, event: React.MouseEvent) => {
@@ -77,22 +73,6 @@ const App: React.FC = () => {
     }
   };
 
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return '剛剛';
-    if (diffMins < 60) return `${diffMins} 分鐘前`;
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)} 小時前`;
-    return `${Math.floor(diffMins / 1440)} 天前`;
-  };
-
-  const truncateText = (text: string, maxLength: number = 50) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-  };
 
   const handleDockSettingChange = async (show: boolean) => {
     await window.electronAPI.setDockSetting(show);
@@ -146,12 +126,27 @@ const App: React.FC = () => {
             <div
               key={item.id}
               className={`history-item ${item.pinned ? 'pinned' : ''}`}
-              onClick={() => handleItemClick(item.content)}
+              onClick={() => handleItemClick(item)}
             >
               <div className="item-content">
                 {index < 9 && <span className="shortcut-key">{index + 1}</span>}
                 {item.pinned && <span className="pin-indicator">📌</span>}
-                <span className="item-text">{truncateText(item.content)}</span>
+                {item.type === 'image' && item.imagePath ? (
+                  <div className="image-item">
+                    <SafeImage 
+                      imagePath={item.imagePath} 
+                      alt="Clipboard image" 
+                      className="image-preview"
+                    />
+                    <div className="image-info">
+                      <span className="image-type">{item.imageFormat?.toUpperCase()}</span>
+                      <span className="image-size">{item.imageSize?.width}×{item.imageSize?.height}</span>
+                      <span className="file-size">{formatFileSize(item.fileSize || 0)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="item-text">{truncateText(item.content)}</span>
+                )}
               </div>
               <div className="item-actions">
                 <button
@@ -177,10 +172,10 @@ const App: React.FC = () => {
           ))
         )}
       </div>
-      
+
       <div className="shortcut-hint">
         <span>按 Cmd+Shift+V 開啟/關閉</span>
-        <span>按 1-9 快速複製項目</span>
+        <span>按 CMD+[1-9] 快速複製項目</span>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, globalShortcut } 
 import path from 'path';
 import { ClipboardManager } from './clipboardManager';
 import Store from './store';
+import { ClipboardItem } from '../shared/types';
 
 let tray: Tray | null = null;
 let window: BrowserWindow | null = null;
@@ -22,7 +23,8 @@ const createWindow = () => {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      webSecurity: true
     }
   });
 
@@ -242,8 +244,8 @@ ipcMain.handle('get-clipboard-history', () => {
   return clipboardManager.getHistory();
 });
 
-ipcMain.handle('copy-to-clipboard', (_, content: string) => {
-  clipboardManager.copyToClipboard(content);
+ipcMain.handle('copy-to-clipboard', (_, item: ClipboardItem) => {
+  clipboardManager.copyToClipboard(item);
   window?.hide();
 });
 
@@ -251,8 +253,8 @@ ipcMain.handle('toggle-pin-item', (_, id: string) => {
   store.togglePinItem(id);
 });
 
-ipcMain.handle('delete-item', (_, id: string) => {
-  return store.deleteItem(id);
+ipcMain.handle('delete-item', async (_, id: string) => {
+  return await store.deleteItem(id);
 });
 
 ipcMain.handle('get-dock-setting', () => {
@@ -260,11 +262,37 @@ ipcMain.handle('get-dock-setting', () => {
 });
 
 ipcMain.handle('set-dock-setting', (_, show: boolean) => {
+  console.log('Setting dock visibility to:', show);
   store.setShowInDock(show);
-  if (show) {
-    app.dock?.show();
-  } else {
-    app.dock?.hide();
+  
+  // Ensure immediate effect
+  setTimeout(() => {
+    if (show) {
+      app.dock?.show();
+    } else {
+      app.dock?.hide();
+    }
+    console.log('Dock visibility updated:', show);
+  }, 50);
+});
+
+ipcMain.handle('get-image-data', async (_, imagePath: string) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    if (!imagePath || !fs.existsSync(imagePath)) {
+      return null;
+    }
+    
+    const imageData = fs.readFileSync(imagePath);
+    const ext = path.extname(imagePath).toLowerCase();
+    const mimeType = ext === '.png' ? 'image/png' : 'image/jpeg';
+    
+    return `data:${mimeType};base64,${imageData.toString('base64')}`;
+  } catch (error) {
+    console.error('Error reading image:', error);
+    return null;
   }
 });
 
@@ -275,6 +303,35 @@ app.whenReady().then(() => {
   store = new Store();
   clipboardManager = new ClipboardManager(store);
   clipboardManager.start();
+  
+  // Initialize dock visibility based on saved setting
+  // Add a small delay to ensure dock is ready
+  setTimeout(() => {
+    const shouldShowInDock = store.getShowInDock();
+    console.log('Initializing dock visibility:', shouldShowInDock);
+    if (shouldShowInDock) {
+      app.dock?.show();
+    } else {
+      app.dock?.hide();
+    }
+  }, 100);
+  
+  // Setup periodic image cleanup (every hour)
+  setInterval(async () => {
+    const history = clipboardManager.getHistory();
+    const imagePaths = new Set<string>();
+    
+    // Collect all valid image paths
+    history.forEach(item => {
+      if (item.type === 'image' && item.imagePath) {
+        imagePaths.add(item.imagePath);
+      }
+    });
+    
+    // Clean up orphaned images
+    const { imageStorage } = await import('./imageStorage');
+    await imageStorage.cleanupOldImages(imagePaths);
+  }, 60 * 60 * 1000); // Run every hour
 
   createTray();
   createWindow();

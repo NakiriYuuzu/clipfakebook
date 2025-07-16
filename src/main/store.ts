@@ -1,5 +1,6 @@
 import ElectronStore from 'electron-store';
 import { ClipboardItem, StoreSchema } from '../shared/types';
+import { imageStorage } from './imageStorage';
 
 class Store {
   private store: ElectronStore<StoreSchema>;
@@ -19,7 +20,15 @@ class Store {
     const history = this.getClipboardHistory();
     
     // Remove duplicate if exists (but keep pinned items)
-    const filteredHistory = history.filter(h => h.content !== item.content);
+    const filteredHistory = history.filter(h => {
+      if (item.type === 'image' && h.type === 'image') {
+        // For images, we don't check for duplicates since each copy creates a new file
+        return true;
+      } else {
+        // For text, remove duplicates
+        return h.content !== item.content;
+      }
+    });
     
     // Add new item at the beginning
     filteredHistory.unshift(item);
@@ -30,6 +39,14 @@ class Store {
     
     // Keep only the latest maxHistorySize unpinned items
     const trimmedUnpinned = unpinnedItems.slice(0, this.maxHistorySize - pinnedItems.length);
+    
+    // Delete image files for items that will be removed
+    const itemsToRemove = unpinnedItems.slice(this.maxHistorySize - pinnedItems.length);
+    itemsToRemove.forEach(async (removedItem) => {
+      if (removedItem.type === 'image' && removedItem.imagePath) {
+        await imageStorage.deleteImage(removedItem.imagePath);
+      }
+    });
     
     // Combine pinned items (at the top) with unpinned items
     const finalHistory = [...pinnedItems, ...trimmedUnpinned];
@@ -55,7 +72,7 @@ class Store {
     this.store.set('clipboardHistory', updatedHistory);
   }
 
-  deleteItem(id: string) {
+  async deleteItem(id: string): Promise<boolean> {
     const history = this.getClipboardHistory();
     const item = history.find(h => h.id === id);
     
@@ -64,13 +81,27 @@ class Store {
       return false;
     }
     
+    // Delete image file if it's an image item
+    if (item?.type === 'image' && item.imagePath) {
+      await imageStorage.deleteImage(item.imagePath);
+    }
+    
     const updatedHistory = history.filter(h => h.id !== id);
     this.store.set('clipboardHistory', updatedHistory);
     return true;
   }
 
-  clearHistory() {
+  async clearHistory() {
     const history = this.getClipboardHistory();
+    
+    // Delete image files for non-pinned items
+    const itemsToDelete = history.filter(h => !h.pinned);
+    for (const item of itemsToDelete) {
+      if (item.type === 'image' && item.imagePath) {
+        await imageStorage.deleteImage(item.imagePath);
+      }
+    }
+    
     // Only keep pinned items when clearing
     const pinnedItems = history.filter(h => h.pinned);
     this.store.set('clipboardHistory', pinnedItems);
