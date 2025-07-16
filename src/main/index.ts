@@ -73,8 +73,8 @@ const createWindow = () => {
 const createTray = () => {
   // Load icon with proper path handling
   const iconPath = app.isPackaged 
-    ? path.join(process.resourcesPath, 'assets/icon.png')
-    : path.join(__dirname, '../../assets/icon.png');
+    ? path.join(process.resourcesPath, 'assets/icon-v3.png')
+    : path.join(__dirname, '../../assets/icon-v3.png');
   
   let icon = nativeImage.createFromPath(iconPath);
   
@@ -111,8 +111,14 @@ const createTray = () => {
 
   // Right click shows context menu
   tray.on('right-click', () => {
+    const showInDock = store.getShowInDock();
     const contextMenu = Menu.buildFromTemplate([
       { label: '清除歷史', click: () => store.clearHistory() },
+      { type: 'separator' },
+      { 
+        label: showInDock ? '從 Dock 隱藏' : '在 Dock 顯示', 
+        click: () => toggleDockVisibility() 
+      },
       { type: 'separator' },
       { label: '退出', click: () => app.quit() }
     ]);
@@ -182,6 +188,21 @@ const getWindowPosition = () => {
   return { x, y };
 };
 
+const toggleDockVisibility = () => {
+  const currentSetting = store.getShowInDock();
+  const newSetting = !currentSetting;
+  
+  store.setShowInDock(newSetting);
+  
+  if (newSetting) {
+    app.dock?.show();
+  } else {
+    app.dock?.hide();
+  }
+  
+  console.log('Dock visibility toggled:', newSetting ? 'shown' : 'hidden');
+};
+
 const setupGlobalShortcuts = () => {
   // 先取消註冊所有快捷鍵
   globalShortcut.unregisterAll();
@@ -234,6 +255,19 @@ ipcMain.handle('delete-item', (_, id: string) => {
   return store.deleteItem(id);
 });
 
+ipcMain.handle('get-dock-setting', () => {
+  return store.getShowInDock();
+});
+
+ipcMain.handle('set-dock-setting', (_, show: boolean) => {
+  store.setShowInDock(show);
+  if (show) {
+    app.dock?.show();
+  } else {
+    app.dock?.hide();
+  }
+});
+
 app.whenReady().then(() => {
   console.log('App is ready');
   
@@ -250,8 +284,13 @@ app.whenReady().then(() => {
     setupGlobalShortcuts();
   }, 500);
   
-  // For macOS, we need to ensure the app stays running
-  app.dock?.hide();
+  // Set initial dock visibility based on user preference
+  const showInDock = store.getShowInDock();
+  if (showInDock) {
+    app.dock?.show();
+  } else {
+    app.dock?.hide();
+  }
   
   console.log('Tray and window created');
 });

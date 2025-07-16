@@ -9,7 +9,8 @@ class Store {
     this.store = new ElectronStore<StoreSchema>({
       defaults: {
         clipboardHistory: [],
-        maxHistorySize: 50
+        maxHistorySize: 50,
+        showInDock: false
       }
     });
   }
@@ -78,6 +79,14 @@ class Store {
   setMaxHistorySize(size: number) {
     this.maxHistorySize = size;
     this.store.set('maxHistorySize', size);
+  }
+
+  getShowInDock(): boolean {
+    return this.store.get('showInDock', false);
+  }
+
+  setShowInDock(show: boolean) {
+    this.store.set('showInDock', show);
   }
 }
 

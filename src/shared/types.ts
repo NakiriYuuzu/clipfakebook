@@ -9,4 +9,5 @@ export interface ClipboardItem {
 export interface StoreSchema {
   clipboardHistory: ClipboardItem[];
   maxHistorySize: number;
+  showInDock: boolean;
 }

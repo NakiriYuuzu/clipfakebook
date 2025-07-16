@@ -13,5 +13,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   deleteItem: (id: string): Promise<boolean> => {
     return ipcRenderer.invoke('delete-item', id);
+  },
+  getDockSetting: (): Promise<boolean> => {
+    return ipcRenderer.invoke('get-dock-setting');
+  },
+  setDockSetting: (show: boolean): Promise<void> => {
+    return ipcRenderer.invoke('set-dock-setting', show);
   }
 });

@@ -9,6 +9,8 @@ declare global {
       copyToClipboard: (content: string) => Promise<void>;
       togglePinItem: (id: string) => Promise<void>;
       deleteItem: (id: string) => Promise<boolean>;
+      getDockSetting: () => Promise<boolean>;
+      setDockSetting: (show: boolean) => Promise<void>;
     };
   }
 }
@@ -16,9 +18,12 @@ declare global {
 const App: React.FC = () => {
   const [history, setHistory] = useState<ClipboardItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showInDock, setShowInDock] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     loadHistory();
+    loadDockSetting();
     // Refresh history every second
     const interval = setInterval(loadHistory, 1000);
     return () => clearInterval(interval);
@@ -47,6 +52,11 @@ const App: React.FC = () => {
   const loadHistory = async () => {
     const items = await window.electronAPI.getClipboardHistory();
     setHistory(items);
+  };
+
+  const loadDockSetting = async () => {
+    const setting = await window.electronAPI.getDockSetting();
+    setShowInDock(setting);
   };
 
   const handleItemClick = async (content: string) => {
@@ -84,17 +94,47 @@ const App: React.FC = () => {
     return text.substring(0, maxLength) + '...';
   };
 
+  const handleDockSettingChange = async (show: boolean) => {
+    await window.electronAPI.setDockSetting(show);
+    setShowInDock(show);
+  };
+
   return (
     <div className="app">
-      <div className="search-container">
-        <input
-          type="text"
-          placeholder="搜尋剪貼簿歷史..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="search-input"
-        />
+      <div className="header">
+        <div className="search-container">
+          <input
+            type="text"
+            placeholder="搜尋剪貼簿歷史..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
+        <button 
+          className="settings-btn"
+          onClick={() => setShowSettings(!showSettings)}
+          title="設定"
+        >
+          ⚙️
+        </button>
       </div>
+      
+      {showSettings && (
+        <div className="settings-panel">
+          <div className="setting-item">
+            <label className="setting-label">
+              <input
+                type="checkbox"
+                checked={showInDock}
+                onChange={(e) => handleDockSettingChange(e.target.checked)}
+                className="setting-checkbox"
+              />
+              在 Dock 中顯示圖示
+            </label>
+          </div>
+        </div>
+      )}
       
       <div className="history-list">
         {filteredHistory.length === 0 ? (
